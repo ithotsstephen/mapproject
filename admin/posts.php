@@ -70,21 +70,58 @@ $posts = $posts_stmt->fetchAll();
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
         <div class="container-fluid">
-            <a class="navbar-brand" href="dashboard.php"><i class="fas fa-user-shield"></i> Admin Portal</a>
-            <div class="navbar-nav me-auto">
-                <a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-                <a class="nav-link active" href="posts.php"><i class="fas fa-file-alt"></i> My Posts</a>
-                <a class="nav-link" href="add-post.php"><i class="fas fa-plus"></i> Add New Post</a>
-            </div>
-            <div class="navbar-nav">
-                <div class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['name']); ?>
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-                    </ul>
-                </div>
+            <a class="navbar-brand" href="dashboard.php">
+                <i class="fas fa-user-shield"></i> Admin Portal
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="dashboard.php">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="posts.php">
+                            <i class="fas fa-file-alt"></i> My Posts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="add-post.php">
+                            <i class="fas fa-plus"></i> Add New Post
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="profile.php">
+                            <i class="fas fa-user-edit"></i> Profile
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['name']); ?>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="profile.php">
+                                <i class="fas fa-user-edit"></i> My Profile
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="../index.php" target="_blank">
+                                <i class="fas fa-external-link-alt"></i> View Website
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="logout.php">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>

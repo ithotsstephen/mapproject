@@ -1,7 +1,7 @@
 <?php
 // Admin Authentication Check
 function check_admin_auth() {
-    if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+    if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'super_admin'])) {
         header('Location: index.php');
         exit();
     }
@@ -11,7 +11,7 @@ function check_admin_auth() {
 function validate_admin_session() {
     if (isset($_SESSION['user_id'])) {
         global $pdo;
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ? AND role = 'admin' AND status = 'active'");
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ? AND role IN ('admin', 'super_admin') AND status = 'active'");
         $stmt->execute([$_SESSION['user_id']]);
         
         if (!$stmt->fetch()) {

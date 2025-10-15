@@ -405,6 +405,10 @@ $categories = $pdo->query("SELECT id, name FROM categories ORDER BY name")->fetc
                                            target="_blank" class="btn btn-sm btn-outline-info" title="View">
                                             <i class="fas fa-eye"></i>
                                         </a>
+                                        <a href="edit-post.php?id=<?php echo $post['id']; ?>" 
+                                           class="btn btn-sm btn-outline-warning" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
                                         <a href="?action=delete&id=<?php echo $post['id']; ?>" 
                                            class="btn btn-sm btn-outline-danger" title="Delete"
                                            onclick="return confirm('Are you sure you want to delete this post?')">
