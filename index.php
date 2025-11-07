@@ -150,6 +150,30 @@ foreach ($post_counts as $count) {
                     <p class="lead">Browse reported incidents by using the <a href="incidents.php">Incidents</a> page or use the filters to find reports for a specific state.</p>
                 </div>
             </div>
+            <!-- Inline SVG map: clicking a state opens state.php?state=StateName -->
+            <div class="row">
+                <div class="col-12 d-flex justify-content-center">
+                    <div id="india-map" style="position:relative; width:100%; max-width:900px;">
+                        <!-- state-count overlays are appended to this div -->
+                        <div id="state-counts" aria-hidden="true"></div>
+                        <!-- Begin embedded SVG -->
+                        <?php
+                        // Inline the SVG file so we can attach click handlers to paths.
+                        $svg_path = __DIR__ . '/mapsvg/india.svg';
+                        if (file_exists($svg_path)) {
+                            $svg = file_get_contents($svg_path);
+                            // strip XML declaration if present
+                            $svg = preg_replace('/^\s*<\?xml[^>]+>\s*/i', '', $svg);
+                            // output SVG directly (it's sanitized/internal asset)
+                            echo $svg;
+                        } else {
+                            echo '<p class="text-muted">Map unavailable.</p>';
+                        }
+                        ?>
+                        <!-- End embedded SVG -->
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -279,18 +303,66 @@ foreach ($post_counts as $count) {
     <script src="js/jquery.min.js"></script>
     <script>
         $(document).ready(function() {
-                // Map functionality removed — no SVG handlers to bind.
-            
-            // Smooth scrolling for anchor links
-            $('a[href^="#"]').on('click', function(event) {
-                var target = $(this.getAttribute('href'));
-                if( target.length ) {
-                    event.preventDefault();
-                    $('html, body').stop().animate({
-                        scrollTop: target.offset().top - 70
-                    }, 1000);
+                // Attach map click handlers when SVG is present
+                var counts = <?php echo json_encode($counts_by_state); ?>;
+
+                function placeBadges() {
+                    $('#state-counts').empty();
+                    var $container = $('#india-map');
+                    var containerRect = $container[0].getBoundingClientRect();
+
+                    // Find path elements that have a title attribute (state name)
+                    $('#india-map svg').find('path[title], polygon[title], g[title]').each(function() {
+                        var el = this;
+                        var $el = $(el);
+                        var stateName = ($el.attr('title') || '').trim();
+                        if (!stateName) return;
+
+                        var count = 0;
+                        if (counts.hasOwnProperty(stateName)) {
+                            count = parseInt(counts[stateName], 10) || 0;
+                        } else if (counts.hasOwnProperty(stateName.toLowerCase())) {
+                            count = parseInt(counts[stateName.toLowerCase()], 10) || 0;
+                        }
+
+                        // make it keyboard accessible and clickable
+                        $el.addClass('state-path').attr('tabindex', 0).css('pointer-events', 'auto');
+                        $el.off('click.stateNav').on('click.stateNav', function() {
+                            window.location.href = 'state.php?state=' + encodeURIComponent(stateName);
+                        });
+                        $el.off('keydown.stateNav').on('keydown.stateNav', function(e) {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                $(this).trigger('click.stateNav');
+                            }
+                        });
+
+                        if (count > 0) {
+                            // compute a reasonable position for the badge using element bounding box
+                            var rect = el.getBoundingClientRect();
+                            var left = rect.left + rect.width / 2 - containerRect.left;
+                            var top = rect.top + rect.height / 2 - containerRect.top;
+                            var $badge = $('<div class="state-count" role="img" aria-label="' + stateName + ' has ' + count + ' reports">' + count + '</div>');
+                            $badge.css({ left: left + 'px', top: top + 'px', position: 'absolute' });
+                            $('#state-counts').append($badge);
+                        }
+                    });
                 }
-            });
+
+                // Place badges after a short delay to allow SVG to render, and on resize
+                setTimeout(placeBadges, 250);
+                $(window).on('resize', function() { setTimeout(placeBadges, 150); });
+
+                // Smooth scrolling for anchor links
+                $('a[href^="#"]').on('click', function(event) {
+                    var target = $(this.getAttribute('href'));
+                    if( target.length ) {
+                        event.preventDefault();
+                        $('html, body').stop().animate({
+                            scrollTop: target.offset().top - 70
+                        }, 1000);
+                    }
+                });
         });
     </script>
 </body>
