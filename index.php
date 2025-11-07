@@ -102,7 +102,7 @@ foreach ($post_counts as $count) {
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="#">
-                <strong>Persecution Tracker</strong>
+                <strong>India's Cry for Justice</strong>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -260,11 +260,11 @@ foreach ($post_counts as $count) {
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <h5>Persecution Tracker</h5>
+                    <h5>India's Cry for Justice</h5>
                     <p>Monitoring and documenting persecution incidents across India</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <p>&copy; 2024 Persecution Tracker. All rights reserved.</p>
+                    <p>&copy; 2024 India's Cry for Justice. All rights reserved.</p>
                     <p>
                         <a href="#" class="text-light me-3">Privacy Policy</a>
                         <a href="#" class="text-light">Contact Us</a>

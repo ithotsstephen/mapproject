@@ -2,13 +2,23 @@
 session_start();
 require_once 'db.php';
 
-// Get state name from URL
-$state = $_GET['state'] ?? '';
+// Get state name from URL and normalize it
+$raw_state = $_GET['state'] ?? '';
+$state = trim($raw_state);
 
+// If empty state param, redirect back
 if (empty($state)) {
     header('Location: index.php');
     exit();
 }
+
+// Normalize whitespace, decode URL/html entities and remove invisible/zero-width chars
+$state = urldecode($state);
+$state = html_entity_decode($state, ENT_QUOTES | ENT_HTML5);
+// Remove common zero-width / BOM characters
+$state = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $state);
+// Collapse multiple whitespace into single space and trim
+$state = trim(preg_replace('/\s+/u', ' ', $state));
 
 // Get filters from URL
 $category_filter = $_GET['category'] ?? '';
