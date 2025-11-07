@@ -50,17 +50,6 @@ $stmt = $pdo->query("
 ");
 $recent_posts = $stmt->fetchAll();
 
-// Posts by state
-$stmt = $pdo->query("
-    SELECT state, COUNT(*) as count 
-    FROM posts 
-    WHERE status = 'published' AND state IS NOT NULL 
-    GROUP BY state 
-    ORDER BY count DESC 
-    LIMIT 10
-");
-$posts_by_state = $stmt->fetchAll();
-
 // Recent admin activity
 $stmt = $pdo->query("
     SELECT u.name, u.last_login, u.status 
@@ -73,11 +62,6 @@ $recent_admin_activity = $stmt->fetchAll();
 
 log_super_admin_activity('Accessed Dashboard');
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Admin Dashboard | Persecution Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -164,11 +148,7 @@ log_super_admin_activity('Accessed Dashboard');
                             <i class="fas fa-file-alt"></i> All Posts
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="settings.php">
-                            <i class="fas fa-cog"></i> Settings
-                        </a>
-                    </li>
+                    <!-- Settings menu removed per request -->
                 </ul>
                 
                 <ul class="navbar-nav">
@@ -285,11 +265,7 @@ log_super_admin_activity('Accessed Dashboard');
                     <canvas id="monthlyPostsChart" height="100"></canvas>
                 </div>
 
-                <!-- Posts by State Chart -->
-                <div class="chart-container">
-                    <h5><i class="fas fa-map"></i> Top States by Posts</h5>
-                    <canvas id="statePostsChart" height="120"></canvas>
-                </div>
+                <!-- Posts by State Chart removed -->
             </div>
 
             <!-- Sidebar Column -->
@@ -417,11 +393,15 @@ log_super_admin_activity('Accessed Dashboard');
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script>
         // Monthly Posts Chart
-        const monthlyCtx = document.getElementById('monthlyPostsChart').getContext('2d');
-        new Chart(monthlyCtx, {
+        (function() {
+            const monthlyEl = document.getElementById('monthlyPostsChart');
+            try {
+                if (monthlyEl && monthlyEl.getContext) {
+                    const monthlyCtx = monthlyEl.getContext('2d');
+                    new Chart(monthlyCtx, {
             type: 'line',
             data: {
                 labels: [<?php echo implode(',', array_map(function($item) { return '"' . date('M Y', strtotime($item['month'] . '-01')) . '"'; }, $monthly_posts)); ?>],
@@ -443,32 +423,85 @@ log_super_admin_activity('Accessed Dashboard');
                     }
                 }
             }
-        });
-
-        // Posts by State Chart
-        const stateCtx = document.getElementById('statePostsChart').getContext('2d');
-        new Chart(stateCtx, {
-            type: 'bar',
-            data: {
-                labels: [<?php echo implode(',', array_map(function($item) { return '"' . $item['state'] . '"'; }, $posts_by_state)); ?>],
-                datasets: [{
-                    label: 'Number of Posts',
-                    data: [<?php echo implode(',', array_column($posts_by_state, 'count')); ?>],
-                    backgroundColor: '#764ba2',
-                    borderColor: '#667eea',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
+                    });
+                } else {
+                    console.warn('monthlyPostsChart canvas not found or unsupported');
                 }
+            } catch (e) {
+                console.error('Error initializing monthlyPostsChart', e);
             }
-        });
+        })();
+
+        // Posts by State Chart (controlled sizing + truncated labels)
+        (function() {
+            const stateEl = document.getElementById('statePostsChart');
+            try {
+                if (stateEl && stateEl.getContext) {
+                    const stateCtx = stateEl.getContext('2d');
+                    const stateLabels = [<?php echo implode(',', array_map(function($item) { return '"' . $item['state'] . '"'; }, $posts_by_state)); ?>];
+                    const stateData = [<?php echo implode(',', array_column($posts_by_state, 'count')); ?>];
+
+                    new Chart(stateCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: stateLabels,
+                            datasets: [{
+                                label: 'Number of Posts',
+                                data: stateData,
+                                backgroundColor: '#764ba2',
+                                borderColor: '#667eea',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            // keep aspect ratio to avoid uncontrolled vertical stretching
+                            maintainAspectRatio: true,
+                            aspectRatio: 2,
+                            scales: {
+                                x: {
+                                    ticks: {
+                                        autoSkip: true,
+                                        maxRotation: 45,
+                                        minRotation: 0,
+                                        callback: function(value, index, ticks) {
+                                            const label = this.getLabelForValue ? this.getLabelForValue(value) : (stateLabels[index] || '');
+                                            if (label && label.length > 15) return label.substr(0, 15) + '...';
+                                            return label;
+                                        }
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: true
+                                }
+                            },
+                            elements: {
+                                bar: {
+                                    // limit bar thickness so chart remains compact
+                                    maxBarThickness: 40,
+                                    barPercentage: 0.8,
+                                    categoryPercentage: 0.7
+                                }
+                            },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        title: function(context) {
+                                            // show full label in tooltip
+                                            return stateLabels[context[0].dataIndex];
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    console.warn('statePostsChart canvas not found or unsupported');
+                }
+            } catch (e) {
+                console.error('Error initializing statePostsChart', e);
+            }
+        })();
     </script>
 </body>
 </html>

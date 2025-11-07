@@ -153,7 +153,7 @@ try {
                 <div class="col-md-3 col-sm-6 mb-3">
                     <div class="stats-card">
                         <div class="stat-number"><?php echo $total_posts; ?></div>
-                        <div class="text-muted">Total Reports</div>
+                        <div class="text-muted">Total Incidents</div>
                     </div>
                 </div>
                 <div class="col-md-3 col-sm-6 mb-3">

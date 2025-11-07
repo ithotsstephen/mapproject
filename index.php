@@ -135,7 +135,7 @@ foreach ($post_counts as $count) {
     <!-- Hero Section -->
     <section class="hero-section">
         <div class="container">
-            <h1 class="display-4 mb-4">India Persecution Report Tracker</h1>
+            <h1 class="display-4 mb-4">India's Cry for Justice </h1>
             <p class="lead mb-4">Track and monitor persecution incidents across Indian states</p>
             <a href="#map" class="btn btn-light btn-lg">Explore Interactive Map</a>
         </div>
@@ -173,7 +173,7 @@ foreach ($post_counts as $count) {
                 <div class="col-lg-3 col-md-6 mb-4">
                     <div class="stat-card">
                         <div class="stat-number"><?php echo $total_posts; ?></div>
-                        <div>Total Reports</div>
+                        <div>Total Incidents</div>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-4">
@@ -185,13 +185,13 @@ foreach ($post_counts as $count) {
                 <div class="col-lg-3 col-md-6 mb-4">
                     <div class="stat-card">
                         <div class="stat-number"><?php echo $total_categories; ?></div>
-                        <div>Categories</div>
+                        <div>Active Categories</div>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-4">
                     <div class="stat-card">
                         <div class="stat-number"><?php echo $recent_posts; ?></div>
-                        <div>This Month</div>
+                        <div>Incidents this Month</div>
                     </div>
                 </div>
             </div>

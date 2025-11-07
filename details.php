@@ -242,8 +242,8 @@ $tags = $post['tags'] ? explode(',', $post['tags']) : [];
                         </div>
                     <?php endif; ?>
 
-                    <!-- Share Buttons -->
-                    <div class="share-buttons">
+                    <!-- Share Buttons blocked by stephen can uncomment later if needed -->
+                    <!-- <div class="share-buttons">
                         <h6><i class="fas fa-share-alt"></i> Share this report:</h6>
                         <a href="https://twitter.com/intent/tweet?url=<?php echo urlencode('http://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']); ?>&text=<?php echo urlencode($post['title']); ?>" 
                            target="_blank" class="btn btn-outline-info btn-sm">
@@ -260,7 +260,7 @@ $tags = $post['tags'] ? explode(',', $post['tags']) : [];
                         <button onclick="copyToClipboard()" class="btn btn-outline-secondary btn-sm">
                             <i class="fas fa-link"></i> Copy Link
                         </button>
-                    </div>
+                    </div> -->
                 </div>
 
                 <!-- Sidebar -->

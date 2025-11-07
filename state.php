@@ -160,7 +160,7 @@ $categories = get_categories($pdo);
                     </h1>
                     <p class="lead">Persecution incidents reported in <?php echo htmlspecialchars($state); ?></p>
                     <p class="mb-0">
-                        <i class="fas fa-file-alt"></i> <?php echo $total_posts; ?> total reports found
+                        <i class="fas fa-file-alt"></i> <?php echo $total_posts; ?> total Incidents found
                         <?php if (!empty($category_filter) || !empty($date_from) || !empty($date_to)): ?>
                             with current filters
                         <?php endif; ?>

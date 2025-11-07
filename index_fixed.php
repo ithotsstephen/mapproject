@@ -118,7 +118,7 @@ foreach ($post_counts as $count) {
                 <div class="col-md-3 col-sm-6 mb-3">
                     <div class="stats-card text-center">
                         <div class="stat-number"><?php echo array_sum($counts_by_state); ?></div>
-                        <div class="text-muted">Total Reports</div>
+                        <div class="text-muted">Total Incidents</div>
                     </div>
                 </div>
                 <div class="col-md-3 col-sm-6 mb-3">

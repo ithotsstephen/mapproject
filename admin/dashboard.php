@@ -363,67 +363,54 @@ log_admin_activity('Accessed Dashboard');
                     </div>
                 </div>
 
-                <!-- Post Status Chart -->
-                <div class="chart-container">
-                    <h5><i class="fas fa-chart-pie"></i> My Posts by Status</h5>
-                    <canvas id="statusChart" height="200"></canvas>
-                </div>
+                <!-- Post Status Chart removed per request -->
             </div>
         </div>
     </div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script>
-        // Monthly Posts Chart
-        const monthlyCtx = document.getElementById('monthlyPostsChart').getContext('2d');
-        new Chart(monthlyCtx, {
-            type: 'line',
-            data: {
-                labels: [<?php echo implode(',', array_map(function($item) { return '"' . date('M Y', strtotime($item['month'] . '-01')) . '"'; }, $monthly_posts)); ?>],
-                datasets: [{
-                    label: 'Posts Created',
-                    data: [<?php echo implode(',', array_column($monthly_posts, 'count')); ?>],
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
+        // Monthly Posts Chart (keep aspect ratio to avoid excessive height)
+        (function() {
+            const monthlyEl = document.getElementById('monthlyPostsChart');
+            try {
+                if (monthlyEl && monthlyEl.getContext) {
+                    const monthlyCtx = monthlyEl.getContext('2d');
+                    new Chart(monthlyCtx, {
+                        type: 'line',
+                        data: {
+                            labels: [<?php echo implode(',', array_map(function($item) { return '"' . date('M Y', strtotime($item['month'] . '-01')) . '"'; }, $monthly_posts)); ?>],
+                            datasets: [{
+                                label: 'Posts Created',
+                                data: [<?php echo implode(',', array_column($monthly_posts, 'count')); ?>],
+                                borderColor: '#28a745',
+                                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            aspectRatio: 2,
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    console.warn('monthlyPostsChart canvas not found or unsupported');
                 }
+            } catch (e) {
+                console.error('Error initializing monthlyPostsChart', e);
             }
-        });
+        })();
 
-        // Status Chart
-        const statusCtx = document.getElementById('statusChart').getContext('2d');
-        new Chart(statusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: [<?php echo implode(',', array_map(function($item) { return '"' . ucfirst($item['status']) . '"'; }, $posts_by_status)); ?>],
-                datasets: [{
-                    data: [<?php echo implode(',', array_column($posts_by_status, 'count')); ?>],
-                    backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
+        // Status Chart removed per request
     </script>
 </body>
 </html>
