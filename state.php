@@ -18,7 +18,7 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $posts_per_page = 10;
 
 // Build query
-$where_conditions = ["state = ? AND status = 'published'"];
+$where_conditions = ["LOWER(TRIM(state)) = LOWER(TRIM(?)) AND status = 'published'"];
 $params = [$state];
 
 if (!empty($category_filter)) {
@@ -59,6 +59,36 @@ $sql = "
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $posts = $stmt->fetchAll();
+
+// If no posts found, try a tolerant fallback (case-insensitive LIKE) to handle small mismatches
+if (empty($posts)) {
+    // Try a LIKE-based match for state (handles extra words/typos/encodings)
+    $like_param = '%' . $state . '%';
+    $fallback_count_sql = "SELECT COUNT(*) FROM posts p WHERE LOWER(state) LIKE LOWER(?) AND status = 'published'";
+    $fallback_count_stmt = $pdo->prepare($fallback_count_sql);
+    $fallback_count_stmt->execute([$like_param]);
+    $fallback_total = (int)$fallback_count_stmt->fetchColumn();
+
+    if ($fallback_total > 0) {
+        // Recompute pagination for fallback
+        $total_posts = $fallback_total;
+        $total_pages = ceil($total_posts / $posts_per_page);
+        $offset = ($page - 1) * $posts_per_page;
+
+        $fallback_sql = "
+            SELECT p.*, c.name as category_name
+            FROM posts p
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE LOWER(state) LIKE LOWER(?) AND status = 'published'
+            ORDER BY p.incident_date DESC, p.created_at DESC
+            LIMIT $posts_per_page OFFSET $offset
+        ";
+
+        $fallback_stmt = $pdo->prepare($fallback_sql);
+        $fallback_stmt->execute([$like_param]);
+        $posts = $fallback_stmt->fetchAll();
+    }
+}
 
 // Get categories for filter dropdown
 $categories = get_categories($pdo);
