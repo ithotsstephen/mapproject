@@ -337,7 +337,7 @@ $states = get_indian_states();
                 <div class="card">
                     <div class="card-body">
                         <form method="POST" enctype="multipart/form-data">
-                            <?php echo generate_csrf_token(); ?>
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             
                             <div class="row">
                                 <!-- Title -->

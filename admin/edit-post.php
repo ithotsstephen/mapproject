@@ -34,6 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $external_links = trim($_POST['external_links'] ?? '');
             $tags = trim($_POST['tags'] ?? '');
             $status = $_POST['status'] ?? 'draft';
+
+            // Admins cannot publish directly. If an admin tries to set 'published', convert to 'admin_approval'.
+            if ($status === 'published') {
+                $status = 'admin_approval';
+            }
             
             // Validation
             $validation_errors = [];
@@ -134,9 +139,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 
                 if ($result) {
-                    $message = 'Post updated successfully!';
+                    // Custom messages depending on status
+                    if ($status === 'admin_approval') {
+                        $message = 'Post updated and sent for Admin Approval. Only a Super Admin can publish this post.';
+                    } elseif ($status === 'draft') {
+                        $message = 'Post updated and saved as Draft.';
+                    } elseif ($status === 'published') {
+                        // This path should not be reachable for admins, but keep a safe message
+                        $message = 'Post updated and marked Published.';
+                    } else {
+                        $message = 'Post updated successfully!';
+                    }
+
                     log_admin_activity('Updated Post', "ID: $post_id, Title: $title, Status: $status");
-                    
+
                     // Redirect back to posts list or stay on edit page
                     if (isset($_POST['save_and_close'])) {
                         header("Location: posts.php?updated=1");
@@ -280,10 +296,16 @@ $states = get_indian_states();
 
                                 <div class="col-md-6 mb-3">
                                     <label for="status" class="form-label">Status</label>
-                                    <select class="form-control" id="status" name="status">
-                                        <option value="draft" <?php echo $post['status'] === 'draft' ? 'selected' : ''; ?>>Draft</option>
-                                        <option value="published" <?php echo $post['status'] === 'published' ? 'selected' : ''; ?>>Published</option>
-                                    </select>
+                                        <select class="form-control" id="status" name="status">
+                                            <option value="draft" <?php echo $post['status'] === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                                            <?php if ($post['status'] === 'published'): ?>
+                                                <!-- Show published as disabled so admin sees current published state but cannot set it -->
+                                                <option value="published" selected disabled>Published (super-admin only)</option>
+                                                <option value="admin_approval">Send for Admin Approval</option>
+                                            <?php else: ?>
+                                                <option value="admin_approval" <?php echo $post['status'] === 'admin_approval' ? 'selected' : ''; ?>>Admin Approval</option>
+                                            <?php endif; ?>
+                                        </select>
                                 </div>
 
                                 <div class="col-md-6 mb-3">

@@ -276,7 +276,7 @@ log_admin_activity('Accessed Profile Page');
                     <h4 class="mb-4"><i class="fas fa-user-edit"></i> Update Profile</h4>
                     
                     <form method="POST" action="">
-                        <?php echo generate_admin_csrf_token(); ?>
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_admin_csrf_token(); ?>">
                         
                         <div class="row">
                             <div class="col-md-6">

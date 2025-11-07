@@ -28,6 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $external_links = trim($_POST['external_links'] ?? '');
             $tags = trim($_POST['tags'] ?? '');
             $status = $_POST['status'] ?? 'draft';
+
+            // Admins cannot publish directly. If an admin tries to set 'published', convert to 'admin_approval'.
+            if ($status === 'published') {
+                $status = 'admin_approval';
+            }
             
             // Validation
             $validation_errors = [];
@@ -407,8 +412,8 @@ $states = get_indian_states();
                                 <option value="draft" <?php echo (($_POST['status'] ?? 'draft') === 'draft') ? 'selected' : ''; ?>>
                                     Save as Draft
                                 </option>
-                                <option value="published" <?php echo (($_POST['status'] ?? '') === 'published') ? 'selected' : ''; ?>>
-                                    Publish Now
+                                <option value="admin_approval" <?php echo (($_POST['status'] ?? '') === 'admin_approval') ? 'selected' : ''; ?>>
+                                    Send for Admin Approval
                                 </option>
                             </select>
                             <small class="form-text text-muted">
@@ -445,9 +450,9 @@ $states = get_indian_states();
                         <button type="submit" name="status" value="draft" class="btn btn-warning w-100 mb-2">
                             <i class="fas fa-save"></i> Save as Draft
                         </button>
-                        
-                        <button type="submit" name="status" value="published" class="btn btn-success w-100 mb-2">
-                            <i class="fas fa-check"></i> Publish Post
+
+                        <button type="submit" name="status" value="admin_approval" class="btn btn-primary w-100 mb-2">
+                            <i class="fas fa-paper-plane"></i> Send for Admin Approval
                         </button>
                         
                         <a href="posts.php" class="btn btn-secondary w-100">
