@@ -429,8 +429,35 @@ foreach ($post_counts as $count) {
 
                         // make it keyboard accessible and clickable
                         $el.addClass('state-path').attr('tabindex', 0).css('pointer-events', 'auto');
+                        // set accessible role/label
+                        $el.attr('role', 'link').attr('aria-label', stateName + ' reports');
+
+                        function resolveStateFromElement(elem) {
+                            var name = (elem.getAttribute && elem.getAttribute('title')) || '';
+                            if (name) return name.trim();
+                            // check for <title> child node inside the SVG element
+                            var titleEl = elem.querySelector && elem.querySelector('title');
+                            if (titleEl && titleEl.textContent) return titleEl.textContent.trim();
+                            // check aria-label or aria-labelledby
+                            var aria = elem.getAttribute && (elem.getAttribute('aria-label') || elem.getAttribute('aria-labelledby'));
+                            if (aria) return aria.trim();
+                            // try parent nodes (some maps use groups)
+                            var p = elem.parentNode;
+                            while (p && p !== document && p !== document.documentElement) {
+                                if (p.getAttribute) {
+                                    var t = p.getAttribute('title') || (p.querySelector && (p.querySelector('title') && p.querySelector('title').textContent));
+                                    if (t) return t.trim();
+                                }
+                                p = p.parentNode;
+                            }
+                            return '';
+                        }
+
                         $el.off('click.stateNav').on('click.stateNav', function() {
-                            window.location.href = 'state.php?state=' + encodeURIComponent(stateName);
+                            var resolved = resolveStateFromElement(this) || stateName;
+                            if (!resolved) resolved = stateName;
+                            // navigate to state page; state.php will perform a tolerant LIKE fallback if exact match fails
+                            window.location.href = 'state.php?state=' + encodeURIComponent(resolved);
                         });
                         $el.off('keydown.stateNav').on('keydown.stateNav', function(e) {
                             if (e.key === 'Enter' || e.key === ' ') {

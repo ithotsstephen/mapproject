@@ -27,9 +27,12 @@ $date_to = $_GET['date_to'] ?? '';
 $page = max(1, intval($_GET['page'] ?? 1));
 $posts_per_page = 10;
 
+// We'll use $query_state when building SQL so we can swap to a resolved/fuzzy match later if needed
+$query_state = $state;
+
 // Build query
 $where_conditions = ["LOWER(TRIM(state)) = LOWER(TRIM(?)) AND status = 'published'"];
-$params = [$state];
+$params = [$query_state];
 
 if (!empty($category_filter)) {
     $where_conditions[] = "category_id = ?";
@@ -100,6 +103,97 @@ if (empty($posts)) {
     }
 }
 
+// If still empty, attempt a fuzzy match against distinct state names in the DB
+// This helps when the SVG title / requested name and DB state values differ slightly
+if (empty($posts)) {
+    try {
+        $distinct_stmt = $pdo->query("SELECT DISTINCT state FROM posts");
+        $candidates = $distinct_stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) {
+        $candidates = [];
+    }
+
+    // Normalizer for better comparison
+    $normalize_for_compare = function($s) {
+        $s = (string)$s;
+        $s = urldecode($s);
+        $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5);
+        $s = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $s);
+        // Keep only alphanumerics and collapse whitespace
+        $s = preg_replace('/[^a-z0-9]+/u', ' ', mb_strtolower($s, 'UTF-8'));
+        $s = trim(preg_replace('/\s+/u', ' ', $s));
+        return $s;
+    };
+
+    $norm_req = $normalize_for_compare($state);
+    $best = null;
+    $bestScore = PHP_INT_MAX;
+
+    foreach ($candidates as $cand) {
+        $norm_c = $normalize_for_compare($cand);
+        if ($norm_c === '') continue;
+        $dist = levenshtein($norm_req, $norm_c);
+        if ($dist < $bestScore) {
+            $bestScore = $dist;
+            $best = $cand;
+        }
+    }
+
+    // Accept match if distance is small or within a reasonable fraction of length
+    if ($best !== null) {
+        $len = max(1, max(strlen($norm_req), strlen($normalize_for_compare($best))));
+        if ($bestScore <= 3 || $bestScore <= max(1, intval($len * 0.25))) {
+            // Use the resolved best match as the query state
+            $query_state = $best;
+
+            // Rebuild where / params using resolved state and existing filters
+            $where_conditions = ["LOWER(TRIM(state)) = LOWER(TRIM(?)) AND status = 'published'"];
+            $params = [$query_state];
+
+            if (!empty($category_filter)) {
+                $where_conditions[] = "category_id = ?";
+                $params[] = $category_filter;
+            }
+
+            if (!empty($date_from)) {
+                $where_conditions[] = "incident_date >= ?";
+                $params[] = $date_from;
+            }
+
+            if (!empty($date_to)) {
+                $where_conditions[] = "incident_date <= ?";
+                $params[] = $date_to;
+            }
+
+            $where_clause = implode(' AND ', $where_conditions);
+
+            // Recompute counts & posts for resolved state
+            $count_sql = "SELECT COUNT(*) FROM posts p WHERE $where_clause";
+            $count_stmt = $pdo->prepare($count_sql);
+            $count_stmt->execute($params);
+            $total_posts = $count_stmt->fetchColumn();
+            $total_pages = ceil($total_posts / $posts_per_page);
+
+            $offset = ($page - 1) * $posts_per_page;
+            $sql = "
+                SELECT p.*, c.name as category_name 
+                FROM posts p 
+                LEFT JOIN categories c ON p.category_id = c.id 
+                WHERE $where_clause 
+                ORDER BY p.incident_date DESC, p.created_at DESC 
+                LIMIT $posts_per_page OFFSET $offset
+            ";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $posts = $stmt->fetchAll();
+        }
+    }
+}
+
+// Display name (may differ from requested if we resolved to a close match)
+$display_state = ($query_state !== $state) ? $query_state : $state;
+
 // Get categories for filter dropdown
 $categories = get_categories($pdo);
 ?>
@@ -108,7 +202,7 @@ $categories = get_categories($pdo);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($state); ?> - Persecution Reports | Persecution Tracker</title>
+    <title><?php echo htmlspecialchars($display_state); ?> - Persecution Reports | Persecution Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -166,9 +260,15 @@ $categories = get_categories($pdo);
             <div class="row">
                 <div class="col-12">
                     <h1 class="display-5 mb-3">
-                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($state); ?>
+                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($display_state); ?>
                     </h1>
-                    <p class="lead">Persecution incidents reported in <?php echo htmlspecialchars($state); ?></p>
+                    <p class="lead">Persecution incidents reported in <?php echo htmlspecialchars($display_state); ?></p>
+                    <?php if ($display_state !== $state): ?>
+                        <div class="alert alert-info mt-2">
+                            Showing results for <strong><?php echo htmlspecialchars($display_state); ?></strong>
+                            (requested state: <em><?php echo htmlspecialchars($state); ?></em>)
+                        </div>
+                    <?php endif; ?>
                     <p class="mb-0">
                         <i class="fas fa-file-alt"></i> <?php echo $total_posts; ?> total Incidents found
                         <?php if (!empty($category_filter) || !empty($date_from) || !empty($date_to)): ?>
@@ -241,7 +341,7 @@ $categories = get_categories($pdo);
                 <div class="col-12">
                     <div class="alert alert-info text-center">
                         <h4><i class="fas fa-info-circle"></i> No Reports Found</h4>
-                        <p>No persecution reports found for <?php echo htmlspecialchars($state); ?> with the current filters.</p>
+                        <p>No persecution reports found for <?php echo htmlspecialchars($display_state); ?> with the current filters.</p>
                         <a href="state.php?state=<?php echo urlencode($state); ?>" class="btn btn-primary">View All Reports</a>
                     </div>
                 </div>
