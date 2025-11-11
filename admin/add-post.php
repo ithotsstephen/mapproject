@@ -69,11 +69,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (isset($_FILES['featured_image']) && $_FILES['featured_image']['error'] !== UPLOAD_ERR_NO_FILE) {
                         $featured_image_path = handle_file_upload($_FILES['featured_image'], 'uploads/images/', ['jpg', 'jpeg', 'png', 'gif']);
                     }
-                    
-                    if (isset($_FILES['additional_image']) && $_FILES['additional_image']['error'] !== UPLOAD_ERR_NO_FILE) {
-                        $image_path = handle_file_upload($_FILES['additional_image'], 'uploads/images/', ['jpg', 'jpeg', 'png', 'gif']);
+
+                    // Handle multiple additional images
+                    $additional_images_paths = [];
+                    if (isset($_FILES['additional_images'])) {
+                        // Normalize the files array
+                        $files = $_FILES['additional_images'];
+                        for ($i = 0; $i < count($files['name']); $i++) {
+                            if ($files['error'][$i] === UPLOAD_ERR_NO_FILE) continue;
+                            $fileArray = [
+                                'name' => $files['name'][$i],
+                                'type' => $files['type'][$i],
+                                'tmp_name' => $files['tmp_name'][$i],
+                                'error' => $files['error'][$i],
+                                'size' => $files['size'][$i]
+                            ];
+                            $path = handle_file_upload($fileArray, 'uploads/images/', ['jpg', 'jpeg', 'png', 'gif']);
+                            if ($path) $additional_images_paths[] = $path;
+                        }
                     }
-                    
+
                     if (isset($_FILES['video']) && $_FILES['video']['error'] !== UPLOAD_ERR_NO_FILE) {
                         $video_path = handle_file_upload($_FILES['video'], 'uploads/videos/', ['mp4']);
                     }
@@ -113,6 +128,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($result) {
                     $post_id = $pdo->lastInsertId();
+                    // If we uploaded additional images, insert into post_images table
+                    if (!empty($additional_images_paths)) {
+                        $insert_img = $pdo->prepare("INSERT INTO post_images (post_id, image_path, sort_order, created_at) VALUES (?, ?, ?, NOW())");
+                        $order = 0;
+                        foreach ($additional_images_paths as $imgPath) {
+                            $insert_img->execute([$post_id, $imgPath, $order]);
+                            $order++;
+                        }
+                    }
                     $message = 'Post created successfully!';
                     log_admin_activity('Created Post', "ID: $post_id, Title: $title, Status: $status");
                     
@@ -371,11 +395,11 @@ $states = get_indian_states();
                         </div>
                         
                         <div class="mb-3">
-                            <label for="additional_image" class="form-label">Additional Image</label>
-                            <input type="file" class="form-control" id="additional_image" name="additional_image" 
-                                   accept="image/*">
-                            <small class="form-text text-muted">Additional supporting image (JPG, PNG, GIF - Max 10MB)</small>
-                            <div id="additional_image_preview"></div>
+                            <label for="additional_images" class="form-label">Additional Images</label>
+                            <input type="file" class="form-control" id="additional_images" name="additional_images[]" 
+                                   accept="image/*" multiple>
+                            <small class="form-text text-muted">Upload one or more supporting images (JPG, PNG, GIF - Max 10MB each)</small>
+                            <div id="additional_images_preview" class="d-flex flex-wrap gap-2 mt-2"></div>
                         </div>
                         
                         <div class="mb-3">
@@ -491,6 +515,39 @@ $states = get_indian_states();
         // Setup previews
         setupFilePreview('featured_image', 'featured_image_preview');
         setupFilePreview('additional_image', 'additional_image_preview');
+        
+        // Multi-file preview for additional_images[] input
+        function setupMultiPreview(inputId, previewContainerId) {
+            const input = document.getElementById(inputId);
+            const container = document.getElementById(previewContainerId);
+            if (!input || !container) return;
+
+            input.addEventListener('change', function(e) {
+                container.innerHTML = '';
+                const files = Array.from(input.files || []);
+                files.forEach(function(file) {
+                    if (!file.type.startsWith('image/')) return;
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        const img = document.createElement('img');
+                        img.src = ev.target.result;
+                        img.className = 'img-thumbnail';
+                        img.style.maxWidth = '120px';
+                        img.style.height = 'auto';
+                        container.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
+        }
+
+        setupMultiPreview('additional_images', 'additional_images_preview');
+
+        // Helper: trigger file chooser from a button (if you add one in future)
+        function triggerFileChooser(inputId) {
+            const input = document.getElementById(inputId);
+            if (input) input.click();
+        }
         setupFilePreview('video', 'video_preview');
 
         // Auto-save draft functionality (optional)

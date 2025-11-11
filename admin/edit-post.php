@@ -87,15 +87,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $featured_image_path = $new_featured_image;
                     }
                 }
-                
-                if (isset($_FILES['additional_image']) && $_FILES['additional_image']['error'] !== UPLOAD_ERR_NO_FILE) {
-                    $new_image = handle_file_upload($_FILES['additional_image'], 'uploads/images/', ['jpg', 'jpeg', 'png', 'gif']);
-                    if ($new_image) {
-                        // Delete old file if exists
-                        if ($image_path && file_exists('../' . $image_path)) {
-                            unlink('../' . $image_path);
-                        }
-                        $image_path = $new_image;
+
+                // Handle multiple additional images (append)
+                $new_additional_images = [];
+                if (isset($_FILES['additional_images'])) {
+                    $files = $_FILES['additional_images'];
+                    for ($i = 0; $i < count($files['name']); $i++) {
+                        if ($files['error'][$i] === UPLOAD_ERR_NO_FILE) continue;
+                        $fileArray = [
+                            'name' => $files['name'][$i],
+                            'type' => $files['type'][$i],
+                            'tmp_name' => $files['tmp_name'][$i],
+                            'error' => $files['error'][$i],
+                            'size' => $files['size'][$i]
+                        ];
+                        $path = handle_file_upload($fileArray, 'uploads/images/', ['jpg', 'jpeg', 'png', 'gif']);
+                        if ($path) $new_additional_images[] = $path;
                     }
                 }
                 
@@ -139,6 +146,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 
                 if ($result) {
+                    // Insert any newly uploaded additional images into post_images
+                    if (!empty($new_additional_images)) {
+                        $insert_img = $pdo->prepare("INSERT INTO post_images (post_id, image_path, sort_order, created_at) VALUES (?, ?, ?, NOW())");
+                        // Determine starting order based on existing images
+                        $order = 0;
+                        try {
+                            $oStmt = $pdo->prepare("SELECT MAX(sort_order) as maxo FROM post_images WHERE post_id = ?");
+                            $oStmt->execute([$post_id]);
+                            $maxo = $oStmt->fetchColumn();
+                            $order = ($maxo !== null) ? intval($maxo) + 1 : 0;
+                        } catch (Exception $e) {
+                            $order = 0;
+                        }
+                        foreach ($new_additional_images as $imgPath) {
+                            $insert_img->execute([$post_id, $imgPath, $order]);
+                            $order++;
+                        }
+                    }
                     // Custom messages depending on status
                     if ($status === 'admin_approval') {
                         $message = 'Post updated and sent for Admin Approval. Only a Super Admin can publish this post.';
@@ -353,17 +378,39 @@ $states = get_indian_states();
                                 </div>
 
                                 <div class="col-md-4 mb-3">
-                                    <label for="additional_image" class="form-label">Additional Image</label>
-                                    <?php if ($post['image_path']): ?>
-                                    <div class="current-file">
-                                        <small class="text-muted">Current:</small><br>
-                                        <img src="../<?php echo htmlspecialchars($post['image_path']); ?>" class="img-thumbnail" style="max-width: 100px;"><br>
-                                        <small><?php echo basename($post['image_path']); ?></small>
-                                    </div>
+                                    <label for="additional_images" class="form-label">Additional Images</label>
+                                    <?php
+                                    // Fetch existing images for this post
+                                    $imgs_stmt = $pdo->prepare("SELECT id, image_path FROM post_images WHERE post_id = ? ORDER BY sort_order ASC, id ASC");
+                                    $imgs_stmt->execute([$post_id]);
+                                    $post_images = $imgs_stmt->fetchAll();
+                                    ?>
+                                    <?php if (!empty($post_images)): ?>
+                                        <div class="mb-2" id="existing_images_container">
+                                            <p class="small text-muted">Drag to reorder images. Edit caption and click <strong>Save Images</strong>.</p>
+                                            <ul id="post-images-list" class="list-unstyled d-flex flex-wrap gap-2">
+                                            <?php foreach ($post_images as $pi): ?>
+                                                <li class="post-image-item p-2 bg-light rounded" data-image-id="<?php echo $pi['id']; ?>" style="max-width:160px;">
+                                                    <div class="image-thumb text-center">
+                                                        <img src="../<?php echo htmlspecialchars($pi['image_path']); ?>" class="img-thumbnail" style="max-width:140px; height:auto; display:block; margin-bottom:6px;">
+                                                    </div>
+                                                    <input type="text" class="form-control form-control-sm image-caption" placeholder="Caption (optional)" value="<?php echo htmlspecialchars($pi['caption'] ?? ''); ?>">
+                                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                                        <small><a href="delete-post-image.php?id=<?php echo $pi['id']; ?>&post=<?php echo $post_id; ?>" class="text-danger small" onclick="return confirm('Delete this image?');">Delete</a></small>
+                                                        <span class="drag-handle" style="cursor:grab;">☰</span>
+                                                    </div>
+                                                </li>
+                                            <?php endforeach; ?>
+                                            </ul>
+                                            <div class="mt-2">
+                                                <button id="save-images-btn" type="button" class="btn btn-sm btn-primary">Save Images</button>
+                                                <span id="save-images-status" class="ms-2 text-muted small"></span>
+                                            </div>
+                                        </div>
                                     <?php endif; ?>
-                                    <input type="file" class="form-control" id="additional_image" name="additional_image" accept="image/*">
-                                    <div class="form-text">Additional supporting image</div>
-                                    <div id="additional_image_preview"></div>
+                                    <input type="file" class="form-control" id="additional_images" name="additional_images[]" accept="image/*" multiple>
+                                    <div class="form-text">Upload one or more new supporting images to add (they will be appended)</div>
+                                    <div id="additional_images_preview"></div>
                                 </div>
 
                                 <div class="col-md-4 mb-3">
@@ -442,3 +489,127 @@ $states = get_indian_states();
     </script>
 </body>
 </html>
+<script>
+    // Multi-file preview for additional_images[] input in edit form
+    (function(){
+        const input = document.getElementById('additional_images');
+        const preview = document.getElementById('additional_images_preview');
+        if (!input || !preview) return;
+
+        input.addEventListener('change', function() {
+            preview.innerHTML = '';
+            const files = Array.from(input.files || []);
+            files.forEach(function(file) {
+                if (!file.type.startsWith('image/')) return;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const img = document.createElement('img');
+                    img.src = ev.target.result;
+                    img.className = 'img-thumbnail';
+                    img.style.maxWidth = '120px';
+                    img.style.height = 'auto';
+                    preview.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    })();
+</script>
+<script>
+// Drag & drop reordering and Save Images handler
+document.addEventListener('DOMContentLoaded', function() {
+    const list = document.getElementById('post-images-list');
+    if (!list) return;
+
+    let dragSrcEl = null;
+
+    function handleDragStart(e) {
+        dragSrcEl = this;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/html', this.outerHTML);
+        this.classList.add('dragging');
+    }
+
+    function handleDragOver(e) {
+        if (e.preventDefault) e.preventDefault();
+        this.classList.add('over');
+        e.dataTransfer.dropEffect = 'move';
+        return false;
+    }
+
+    function handleDragLeave(e) {
+        this.classList.remove('over');
+    }
+
+    function handleDrop(e) {
+        if (e.stopPropagation) e.stopPropagation();
+        if (dragSrcEl !== this) {
+            // Swap elements
+            const srcHtml = e.dataTransfer.getData('text/html');
+            this.insertAdjacentHTML('beforebegin', srcHtml);
+            const dropped = this.previousSibling;
+            addDnDHandlers(dropped);
+            dragSrcEl.parentNode.removeChild(dragSrcEl);
+        }
+        this.classList.remove('over');
+        return false;
+    }
+
+    function handleDragEnd(e) {
+        this.classList.remove('dragging');
+        const items = list.querySelectorAll('.post-image-item');
+        items.forEach(function(it) { it.classList.remove('over'); });
+    }
+
+    function addDnDHandlers(item) {
+        item.setAttribute('draggable', 'true');
+        item.addEventListener('dragstart', handleDragStart, false);
+        item.addEventListener('dragover', handleDragOver, false);
+        item.addEventListener('dragleave', handleDragLeave, false);
+        item.addEventListener('drop', handleDrop, false);
+        item.addEventListener('dragend', handleDragEnd, false);
+    }
+
+    // Initialize handlers
+    const items = list.querySelectorAll('.post-image-item');
+    items.forEach(function(it) { addDnDHandlers(it); });
+
+    // Save Images button
+    const saveBtn = document.getElementById('save-images-btn');
+    const statusSpan = document.getElementById('save-images-status');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            const rows = Array.from(list.querySelectorAll('.post-image-item'));
+            const imagesPayload = rows.map(function(row, idx) {
+                return {
+                    id: parseInt(row.getAttribute('data-image-id'), 10),
+                    caption: row.querySelector('.image-caption').value || '',
+                    sort_order: idx
+                };
+            });
+
+            const csrf = document.querySelector('input[name="csrf_token"]').value;
+            const postId = <?php echo json_encode($post_id); ?>;
+
+            statusSpan.textContent = 'Saving...';
+            fetch('update-post-images.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'post_id=' + encodeURIComponent(postId) +
+                      '&csrf_token=' + encodeURIComponent(csrf) +
+                      '&images=' + encodeURIComponent(JSON.stringify(imagesPayload))
+            }).then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data && data.success) {
+                    statusSpan.textContent = 'Saved';
+                    setTimeout(function(){ statusSpan.textContent = ''; }, 1500);
+                } else {
+                    statusSpan.textContent = (data && data.message) ? data.message : 'Error saving';
+                }
+            }).catch(function(err) {
+                statusSpan.textContent = 'Network error';
+            });
+        });
+    }
+});
+</script>

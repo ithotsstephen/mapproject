@@ -34,6 +34,11 @@ $external_links = $post['external_links'] ? explode(',', $post['external_links']
 
 // Parse tags
 $tags = $post['tags'] ? explode(',', $post['tags']) : [];
+
+// Fetch additional images for gallery
+$gallery_stmt = $pdo->prepare("SELECT id, image_path, caption FROM post_images WHERE post_id = ? ORDER BY sort_order ASC, id ASC");
+$gallery_stmt->execute([$post_id]);
+$gallery_images = $gallery_stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -187,8 +192,8 @@ $tags = $post['tags'] ? explode(',', $post['tags']) : [];
                 <div class="col-lg-8">
                     <!-- Featured Image -->
                     <?php if ($post['featured_image_path']): ?>
-                        <img src="<?php echo htmlspecialchars($post['featured_image_path']); ?>" 
-                             alt="Report Image" class="post-image">
+                    <img src="<?php echo htmlspecialchars($post['featured_image_path']); ?>" 
+                        alt="Report Image" class="post-image" data-bs-toggle="modal" data-bs-target="#galleryModal" data-index="0">
                     <?php endif; ?>
 
                     <!-- Video -->
@@ -200,9 +205,28 @@ $tags = $post['tags'] ? explode(',', $post['tags']) : [];
                     <?php endif; ?>
 
                     <!-- Additional Image -->
-                    <?php if ($post['image_path'] && $post['image_path'] != $post['featured_image_path']): ?>
-                        <img src="<?php echo htmlspecialchars($post['image_path']); ?>" 
-                             alt="Additional Image" class="post-image">
+                    <?php
+                    // Build gallery list (featured first if present)
+                    $gallery_all = [];
+                    if ($post['featured_image_path']) {
+                        $gallery_all[] = ['image_path' => $post['featured_image_path'], 'caption' => 'Featured Image'];
+                    }
+                    foreach ($gallery_images as $gi) {
+                        // avoid duplicate if same as featured
+                        if ($gi['image_path'] && $gi['image_path'] !== $post['featured_image_path']) {
+                            $gallery_all[] = ['image_path' => $gi['image_path'], 'caption' => $gi['caption'] ?: ''];
+                        }
+                    }
+                    ?>
+
+                    <?php if (!empty($gallery_all)): ?>
+                        <div class="mb-3 gallery-thumbs d-flex flex-wrap gap-2">
+                            <?php foreach ($gallery_all as $i => $gimg): ?>
+                                <img src="<?php echo htmlspecialchars($gimg['image_path']); ?>" 
+                                     alt="Gallery Image" class="img-thumbnail" style="max-width:160px; cursor:pointer;" 
+                                     data-bs-toggle="modal" data-bs-target="#galleryModal" data-index="<?php echo $i; ?>">
+                            <?php endforeach; ?>
+                        </div>
                     <?php endif; ?>
 
                     <!-- Post Content -->
@@ -410,8 +434,57 @@ $tags = $post['tags'] ? explode(',', $post['tags']) : [];
         </div>
     </footer>
 
+        <!-- Gallery Modal (Bootstrap) -->
+        <div class="modal fade" id="galleryModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content bg-dark">
+                    <div class="modal-body p-0">
+                        <div id="galleryCarousel" class="carousel slide" data-bs-ride="carousel">
+                            <div class="carousel-inner">
+                                <?php foreach ($gallery_all as $i => $gimg): ?>
+                                    <div class="carousel-item <?php echo $i === 0 ? 'active' : ''; ?>">
+                                        <img src="<?php echo htmlspecialchars($gimg['image_path']); ?>" class="d-block w-100" alt="">
+                                        <?php if (!empty($gimg['caption'])): ?>
+                                            <div class="carousel-caption d-none d-md-block">
+                                                <p><?php echo htmlspecialchars($gimg['caption']); ?></p>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <button class="carousel-control-prev" type="button" data-bs-target="#galleryCarousel" data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Previous</span>
+                            </button>
+                            <button class="carousel-control-next" type="button" data-bs-target="#galleryCarousel" data-bs-slide="next">
+                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Next</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // When opening modal via thumbnail, jump to the appropriate carousel index
+        var galleryModal = document.getElementById('galleryModal');
+        if (galleryModal) {
+            galleryModal.addEventListener('show.bs.modal', function (event) {
+                var trigger = event.relatedTarget;
+                var index = trigger ? parseInt(trigger.getAttribute('data-index') || '0', 10) : 0;
+                var carousel = document.getElementById('galleryCarousel');
+                if (carousel) {
+                    var bsCarousel = bootstrap.Carousel.getInstance(carousel);
+                    if (!bsCarousel) bsCarousel = new bootstrap.Carousel(carousel, {interval: false});
+                    // Move to index
+                    bsCarousel.to(index);
+                }
+            });
+        }
+    </script>
     <script>
         function copyToClipboard() {
             navigator.clipboard.writeText(window.location.href).then(function() {
