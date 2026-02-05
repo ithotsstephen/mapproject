@@ -2,6 +2,13 @@
 session_start();
 require_once 'db.php';
 
+// Temporary debug: show PHP errors only when debug=1
+if (isset($_GET['debug']) && $_GET['debug'] == '1') {
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+}
+
 // Get state name from URL and normalize it
 $raw_state = $_GET['state'] ?? '';
 $state = trim($raw_state);
@@ -30,54 +37,67 @@ $posts_per_page = 10;
 // We'll use $query_state when building SQL so we can swap to a resolved/fuzzy match later if needed
 $query_state = $state;
 
-// Build query
-$where_conditions = ["LOWER(TRIM(state)) = LOWER(TRIM(?)) AND status = 'published'"];
-$params = [$query_state];
+// Build query and fetch data safely
+$posts = [];
+$total_posts = 0;
+$total_pages = 0;
+$error_message = '';
 
-if (!empty($category_filter)) {
-    $where_conditions[] = "category_id = ?";
-    $params[] = $category_filter;
+try {
+    $where_conditions = ["LOWER(TRIM(p.state)) = LOWER(TRIM(?)) AND LOWER(TRIM(p.status)) = 'published'"];
+    $params = [$query_state];
+
+    if (!empty($category_filter)) {
+        $where_conditions[] = "category_id = ?";
+        $params[] = $category_filter;
+    }
+
+    if (!empty($date_from)) {
+        $where_conditions[] = "incident_date >= ?";
+        $params[] = $date_from;
+    }
+
+    if (!empty($date_to)) {
+        $where_conditions[] = "incident_date <= ?";
+        $params[] = $date_to;
+    }
+
+    $where_clause = implode(' AND ', $where_conditions);
+
+    // Get total count for pagination
+    $count_sql = "SELECT COUNT(*) FROM posts p WHERE $where_clause";
+    $count_stmt = $pdo->prepare($count_sql);
+    $count_stmt->execute($params);
+    $total_posts = $count_stmt->fetchColumn();
+    $total_pages = ceil($total_posts / $posts_per_page);
+
+    // Get posts for current page
+    $offset = ($page - 1) * $posts_per_page;
+    $sql = "
+        SELECT p.*, c.name as category_name 
+        FROM posts p 
+        LEFT JOIN categories c ON p.category_id = c.id 
+        WHERE $where_clause 
+        ORDER BY p.incident_date DESC, p.created_at DESC 
+        LIMIT $posts_per_page OFFSET $offset
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $posts = $stmt->fetchAll();
+} catch (Throwable $e) {
+    error_log('state.php error: ' . $e->getMessage());
+    $error_message = 'An internal error occurred while loading incidents.';
+    if (isset($_GET['debug']) && $_GET['debug'] == '1') {
+        $error_message .= ' Details: ' . $e->getMessage();
+    }
 }
-
-if (!empty($date_from)) {
-    $where_conditions[] = "incident_date >= ?";
-    $params[] = $date_from;
-}
-
-if (!empty($date_to)) {
-    $where_conditions[] = "incident_date <= ?";
-    $params[] = $date_to;
-}
-
-$where_clause = implode(' AND ', $where_conditions);
-
-// Get total count for pagination
-$count_sql = "SELECT COUNT(*) FROM posts p WHERE $where_clause";
-$count_stmt = $pdo->prepare($count_sql);
-$count_stmt->execute($params);
-$total_posts = $count_stmt->fetchColumn();
-$total_pages = ceil($total_posts / $posts_per_page);
-
-// Get posts for current page
-$offset = ($page - 1) * $posts_per_page;
-$sql = "
-    SELECT p.*, c.name as category_name 
-    FROM posts p 
-    LEFT JOIN categories c ON p.category_id = c.id 
-    WHERE $where_clause 
-    ORDER BY p.incident_date DESC, p.created_at DESC 
-    LIMIT $posts_per_page OFFSET $offset
-";
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$posts = $stmt->fetchAll();
 
 // If no posts found, try a tolerant fallback (case-insensitive LIKE) to handle small mismatches
-if (empty($posts)) {
+if (empty($posts) && empty($error_message)) {
     // Try a LIKE-based match for state (handles extra words/typos/encodings)
     $like_param = '%' . $state . '%';
-    $fallback_count_sql = "SELECT COUNT(*) FROM posts p WHERE LOWER(state) LIKE LOWER(?) AND status = 'published'";
+    $fallback_count_sql = "SELECT COUNT(*) FROM posts p WHERE LOWER(p.state) LIKE LOWER(?) AND LOWER(TRIM(p.status)) = 'published'";
     $fallback_count_stmt = $pdo->prepare($fallback_count_sql);
     $fallback_count_stmt->execute([$like_param]);
     $fallback_total = (int)$fallback_count_stmt->fetchColumn();
@@ -92,7 +112,7 @@ if (empty($posts)) {
             SELECT p.*, c.name as category_name
             FROM posts p
             LEFT JOIN categories c ON p.category_id = c.id
-            WHERE LOWER(state) LIKE LOWER(?) AND status = 'published'
+            WHERE LOWER(p.state) LIKE LOWER(?) AND LOWER(TRIM(p.status)) = 'published'
             ORDER BY p.incident_date DESC, p.created_at DESC
             LIMIT $posts_per_page OFFSET $offset
         ";
@@ -105,7 +125,7 @@ if (empty($posts)) {
 
 // If still empty, attempt a fuzzy match against distinct state names in the DB
 // This helps when the SVG title / requested name and DB state values differ slightly
-if (empty($posts)) {
+if (empty($posts) && empty($error_message)) {
     try {
         $distinct_stmt = $pdo->query("SELECT DISTINCT state FROM posts");
         $candidates = $distinct_stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -114,13 +134,20 @@ if (empty($posts)) {
     }
 
     // Normalizer for better comparison
-    $normalize_for_compare = function($s) {
+    $mb_to_lower = function($str) {
+        if (function_exists('mb_strtolower')) {
+            return mb_strtolower($str, 'UTF-8');
+        }
+        return strtolower($str);
+    };
+
+    $normalize_for_compare = function($s) use ($mb_to_lower) {
         $s = (string)$s;
         $s = urldecode($s);
         $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5);
         $s = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $s);
         // Keep only alphanumerics and collapse whitespace
-        $s = preg_replace('/[^a-z0-9]+/u', ' ', mb_strtolower($s, 'UTF-8'));
+        $s = preg_replace('/[^a-z0-9]+/u', ' ', $mb_to_lower($s));
         $s = trim(preg_replace('/\s+/u', ' ', $s));
         return $s;
     };
@@ -147,7 +174,7 @@ if (empty($posts)) {
             $query_state = $best;
 
             // Rebuild where / params using resolved state and existing filters
-            $where_conditions = ["LOWER(TRIM(state)) = LOWER(TRIM(?)) AND status = 'published'"];
+            $where_conditions = ["LOWER(TRIM(p.state)) = LOWER(TRIM(?)) AND LOWER(TRIM(p.status)) = 'published'"];
             $params = [$query_state];
 
             if (!empty($category_filter)) {
@@ -268,6 +295,9 @@ $categories = get_categories($pdo);
                             Showing results for <strong><?php echo htmlspecialchars($display_state); ?></strong>
                             (requested state: <em><?php echo htmlspecialchars($state); ?></em>)
                         </div>
+                    <?php endif; ?>
+                    <?php if (!empty($error_message)): ?>
+                        <div class="alert alert-danger mt-2"><?php echo htmlspecialchars($error_message); ?></div>
                     <?php endif; ?>
                     <p class="mb-0">
                         <i class="fas fa-file-alt"></i> <?php echo $total_posts; ?> total Incidents found

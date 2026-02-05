@@ -12,6 +12,37 @@ $offset = ($page - 1) * $per_page;
 $filter_status = $_GET['status'] ?? '';
 $search_term = $_GET['search'] ?? '';
 
+$message = '';
+$error = '';
+
+// Handle delete action (only allow deleting own drafts)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Invalid security token. Please try again.';
+    } else {
+        $delete_id = intval($_POST['post_id'] ?? 0);
+        if ($delete_id > 0) {
+            $check = $pdo->prepare('SELECT admin_id, status FROM posts WHERE id = ?');
+            $check->execute([$delete_id]);
+            $row = $check->fetch();
+            if (!$row) {
+                $error = 'Post not found.';
+            } elseif ($row['admin_id'] != $_SESSION['user_id']) {
+                $error = 'You do not have permission to delete this post.';
+            } elseif ($row['status'] !== 'draft') {
+                $error = 'Only draft posts can be deleted.';
+            } else {
+                $del = $pdo->prepare('DELETE FROM posts WHERE id = ?');
+                if ($del->execute([$delete_id])) {
+                    $message = 'Post deleted successfully.';
+                } else {
+                    $error = 'Failed to delete post.';
+                }
+            }
+        }
+    }
+}
+
 // Build query conditions
 $conditions = ["admin_id = ?"];
 $params = [$_SESSION['user_id']];
@@ -134,6 +165,19 @@ $posts = $posts_stmt->fetchAll();
     </div>
 
     <div class="container-fluid">
+        <?php if (!empty($message)): ?>
+            <div class="alert alert-success alert-dismissible fade show">
+                <?php echo htmlspecialchars($message); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($error)): ?>
+            <div class="alert alert-danger alert-dismissible fade show">
+                <?php echo htmlspecialchars($error); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
         <div class="card mb-4">
             <div class="card-body">
                 <form method="GET" class="row g-3">
@@ -185,7 +229,16 @@ $posts = $posts_stmt->fetchAll();
                         <div class="card-footer">
                             <a href="edit-post.php?id=<?php echo $post['id']; ?>" class="btn btn-sm btn-primary"><i class="fas fa-edit"></i> Edit</a>
                             <a href="../details.php?id=<?php echo $post['id']; ?>" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</a>
-                            <a href="?delete=<?php echo $post['id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Delete this post?')"><i class="fas fa-trash"></i></a>
+                            <?php if ($post['status'] === 'draft'): ?>
+                                <form method="POST" style="display:inline">
+                                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this post?')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

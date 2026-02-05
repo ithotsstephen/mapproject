@@ -146,7 +146,7 @@ $tags = $post['tags'] ? explode(',', $post['tags']) : [];
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="index.php">Home</a>
                 <?php if ($post['state']): ?>
-                    <a class="nav-link" href="state.php?state=<?php echo urlencode($post['state']); ?>">
+                    <a class="nav-link" href="incidents.php?state=<?php echo urlencode($post['state']); ?>">
                         <?php echo htmlspecialchars($post['state']); ?>
                     </a>
                 <?php endif; ?>
@@ -172,7 +172,7 @@ $tags = $post['tags'] ? explode(',', $post['tags']) : [];
             <!-- Back Button -->
             <div class="back-button">
                 <?php if ($post['state']): ?>
-                    <a href="state.php?state=<?php echo urlencode($post['state']); ?>" class="btn btn-outline-primary">
+                    <a href="incidents.php?state=<?php echo urlencode($post['state']); ?>" class="btn btn-outline-primary">
                         <i class="fas fa-arrow-left"></i> Back to <?php echo htmlspecialchars($post['state']); ?> Reports
                     </a>
                 <?php else: ?>

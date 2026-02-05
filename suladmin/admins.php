@@ -6,8 +6,8 @@ require_once 'auth.php';
 check_super_admin_auth();
 validate_super_admin_session();
 
-$action = $_GET['action'] ?? 'list';
-$admin_id = intval($_GET['id'] ?? 0);
+$action = $_GET['action'] ?? $_POST['action'] ?? 'list';
+$admin_id = intval($_GET['id'] ?? $_POST['admin_id'] ?? 0);
 $message = '';
 $error = '';
 
@@ -307,13 +307,16 @@ if ($action === 'list') {
                                    class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-edit"></i> Edit
                                 </a>
-                                <?php if ($admin['post_count'] == 0): ?>
-                                    <a href="?action=delete&id=<?php echo $admin['id']; ?>" 
-                                       class="btn btn-sm btn-outline-danger"
-                                       onclick="return confirm('Are you sure you want to delete this admin?')">
+                                <!-- Always show delete button (backend still protects admins with posts) -->
+                                <form method="POST" class="d-inline-block">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="admin_id" value="<?php echo $admin['id']; ?>">
+                                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                            onclick="return confirm('Are you sure you want to delete this admin?')">
                                         <i class="fas fa-trash"></i> Delete
-                                    </a>
-                                <?php endif; ?>
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>

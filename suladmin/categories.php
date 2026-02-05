@@ -6,8 +6,8 @@ require_once 'auth.php';
 check_super_admin_auth();
 validate_super_admin_session();
 
-$action = $_GET['action'] ?? 'list';
-$category_id = intval($_GET['id'] ?? 0);
+$action = $_GET['action'] ?? $_POST['action'] ?? 'list';
+$category_id = intval($_GET['id'] ?? $_POST['category_id'] ?? 0);
 $message = '';
 $error = '';
 
@@ -289,11 +289,15 @@ if ($action === 'list') {
                                     <i class="fas fa-edit"></i> Edit
                                 </a>
                                 <?php if ($category['post_count'] == 0): ?>
-                                    <a href="?action=delete&id=<?php echo $category['id']; ?>" 
-                                       class="btn btn-sm btn-outline-danger"
-                                       onclick="return confirm('Are you sure you want to delete this category?')">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </a>
+                                    <form method="POST" class="d-inline-block">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="category_id" value="<?php echo $category['id']; ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                onclick="return confirm('Are you sure you want to delete this category?')">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </form>
                                 <?php endif; ?>
                             </div>
                         </div>

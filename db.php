@@ -18,13 +18,34 @@ $config = [
     ]
 ];
 
+$pdo = null;
+$lastException = null;
+$primaryDsn = "mysql:host={$config['host']};dbname={$config['dbname']};charset={$config['charset']}";
+$fallbackDsn = "mysql:host={$config['host']};dbname=incident_tracker;charset={$config['charset']}";
+
 try {
-    $dsn = "mysql:host={$config['host']};dbname={$config['dbname']};charset={$config['charset']}";
-    $pdo = new PDO($dsn, $config['username'], $config['password'], $config['options']);
+    $pdo = new PDO($primaryDsn, $config['username'], $config['password'], $config['options']);
 } catch (PDOException $e) {
-    // Log error and show user-friendly message
-    error_log("Database connection failed: " . $e->getMessage());
-    die("Database connection failed. Please try again later.");
+    $lastException = $e;
+    error_log("Primary DB connection failed: " . $e->getMessage());
+
+    // Attempt fallback DB name if primary fails
+    try {
+        $pdo = new PDO($fallbackDsn, $config['username'], $config['password'], $config['options']);
+        error_log("Connected to fallback DB 'incident_tracker' successfully.");
+    } catch (PDOException $e2) {
+        $lastException = $e2;
+        error_log("Fallback DB connection failed: " . $e2->getMessage());
+
+        // If debug flag present in HTTP request, show the error message (temporary troubleshooting aid)
+        if (php_sapi_name() !== 'cli' && isset($_GET['debug']) && $_GET['debug'] == '1') {
+            // Escaping message to avoid XSS when echoed into browser
+            die("Database connection failed: " . htmlspecialchars($lastException->getMessage(), ENT_QUOTES, 'UTF-8'));
+        }
+
+        // Generic failure message for production
+        die("Database connection failed. Please try again later.");
+    }
 }
 
 // Security headers

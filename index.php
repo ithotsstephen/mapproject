@@ -456,7 +456,7 @@ foreach ($post_counts as $count) {
                         $el.off('click.stateNav').on('click.stateNav', function() {
                             var resolved = resolveStateFromElement(this) || stateName;
                             if (!resolved) resolved = stateName;
-                            // navigate to state page; state.php will perform a tolerant LIKE fallback if exact match fails
+                            // navigate directly to the state incidents list
                             window.location.href = 'state.php?state=' + encodeURIComponent(resolved);
                         });
                         $el.off('keydown.stateNav').on('keydown.stateNav', function(e) {

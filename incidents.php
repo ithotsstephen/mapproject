@@ -40,23 +40,17 @@ $count_stmt->execute($params);
 $total = (int) $count_stmt->fetchColumn();
 $total_pages = (int) ceil($total / $per_page);
 
-// Fetch paginated posts
 $sql = "
     SELECT p.*, c.name as category_name
     FROM posts p
     LEFT JOIN categories c ON p.category_id = c.id
     " . $where . "
     ORDER BY p.created_at DESC
-    LIMIT ? OFFSET ?
+    LIMIT " . (int)$per_page . " OFFSET " . (int)$offset . "
 ";
 
-// Append limit/offset to params
-$fetch_params = $params;
-$fetch_params[] = $per_page;
-$fetch_params[] = $offset;
-
 $stmt = $pdo->prepare($sql);
-$stmt->execute($fetch_params);
+$stmt->execute($params);
 $posts = $stmt->fetchAll();
 
 // Get states for dropdown
