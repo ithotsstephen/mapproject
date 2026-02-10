@@ -15,28 +15,54 @@ $search_term = $_GET['search'] ?? '';
 $message = '';
 $error = '';
 
-// Handle delete action (only allow deleting own drafts)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
-    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+// Handle actions (delete draft, send for approval)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if (!verify_admin_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Invalid security token. Please try again.';
     } else {
-        $delete_id = intval($_POST['post_id'] ?? 0);
-        if ($delete_id > 0) {
-            $check = $pdo->prepare('SELECT admin_id, status FROM posts WHERE id = ?');
-            $check->execute([$delete_id]);
-            $row = $check->fetch();
-            if (!$row) {
-                $error = 'Post not found.';
-            } elseif ($row['admin_id'] != $_SESSION['user_id']) {
-                $error = 'You do not have permission to delete this post.';
-            } elseif ($row['status'] !== 'draft') {
-                $error = 'Only draft posts can be deleted.';
-            } else {
-                $del = $pdo->prepare('DELETE FROM posts WHERE id = ?');
-                if ($del->execute([$delete_id])) {
-                    $message = 'Post deleted successfully.';
+        $action = $_POST['action'];
+        if ($action === 'delete') {
+            $delete_id = intval($_POST['post_id'] ?? 0);
+            if ($delete_id > 0) {
+                $check = $pdo->prepare('SELECT admin_id, status FROM posts WHERE id = ?');
+                $check->execute([$delete_id]);
+                $row = $check->fetch();
+                if (!$row) {
+                    $error = 'Post not found.';
+                } elseif ($row['admin_id'] != $_SESSION['user_id']) {
+                    $error = 'You do not have permission to delete this post.';
+                } elseif ($row['status'] !== 'draft') {
+                    $error = 'Only draft posts can be deleted.';
                 } else {
-                    $error = 'Failed to delete post.';
+                    $del = $pdo->prepare('DELETE FROM posts WHERE id = ?');
+                    if ($del->execute([$delete_id])) {
+                        $message = 'Draft post deleted successfully.';
+                    } else {
+                        $error = 'Failed to delete post.';
+                    }
+                }
+            }
+        }
+
+        if ($action === 'send_approval') {
+            $post_id = intval($_POST['post_id'] ?? 0);
+            if ($post_id > 0) {
+                $check = $pdo->prepare('SELECT admin_id, status FROM posts WHERE id = ?');
+                $check->execute([$post_id]);
+                $row = $check->fetch();
+                if (!$row) {
+                    $error = 'Post not found.';
+                } elseif ($row['admin_id'] != $_SESSION['user_id']) {
+                    $error = 'You do not have permission to update this post.';
+                } elseif ($row['status'] !== 'draft') {
+                    $error = 'Only draft posts can be sent for approval.';
+                } else {
+                    $upd = $pdo->prepare("UPDATE posts SET status = 'admin_approval' WHERE id = ?");
+                    if ($upd->execute([$post_id])) {
+                        $message = 'Post sent for admin approval.';
+                    } else {
+                        $error = 'Failed to send post for approval.';
+                    }
                 }
             }
         }
@@ -48,7 +74,7 @@ $conditions = ["admin_id = ?"];
 $params = [$_SESSION['user_id']];
 
 if ($filter_status) {
-    $conditions[] = "status = ?";
+    $conditions[] = "LOWER(TRIM(status)) = LOWER(TRIM(?))";
     $params[] = $filter_status;
 }
 
@@ -186,6 +212,8 @@ $posts = $posts_stmt->fetchAll();
                             <option value="">All Status</option>
                             <option value="published" <?php echo $filter_status === 'published' ? 'selected' : ''; ?>>Published</option>
                             <option value="draft" <?php echo $filter_status === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                            <option value="admin_approval" <?php echo $filter_status === 'admin_approval' ? 'selected' : ''; ?>>Admin Approval</option>
+                            <option value="unpublished" <?php echo $filter_status === 'unpublished' ? 'selected' : ''; ?>>Unpublished</option>
                         </select>
                     </div>
                     <div class="col-md-6">
@@ -231,7 +259,15 @@ $posts = $posts_stmt->fetchAll();
                             <a href="../details.php?id=<?php echo $post['id']; ?>" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</a>
                             <?php if ($post['status'] === 'draft'): ?>
                                 <form method="POST" style="display:inline">
-                                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                    <input type="hidden" name="csrf_token" value="<?php echo generate_admin_csrf_token(); ?>">
+                                    <input type="hidden" name="action" value="send_approval">
+                                    <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+                                    <button type="submit" class="btn btn-sm btn-success" title="Send for approval">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" style="display:inline">
+                                    <input type="hidden" name="csrf_token" value="<?php echo generate_admin_csrf_token(); ?>">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this post?')">

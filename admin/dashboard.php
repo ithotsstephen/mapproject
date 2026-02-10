@@ -263,11 +263,7 @@ log_admin_activity('Accessed Dashboard');
         <div class="row">
             <!-- Charts Column -->
             <div class="col-xl-8 mb-4">
-                <!-- Posts by Month Chart -->
-                <div class="chart-container mb-4">
-                    <h5><i class="fas fa-chart-line"></i> My Posts by Month</h5>
-                    <canvas id="monthlyPostsChart" height="100"></canvas>
-                </div>
+                <!-- Posts by Month Chart removed per request -->
 
                 <!-- Recent Posts -->
                 <div class="card">
@@ -311,6 +307,24 @@ log_admin_activity('Accessed Dashboard');
                                                    target="_blank" class="btn btn-sm btn-outline-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
+                                                <?php if ($post['status'] === 'draft'): ?>
+                                                    <form method="POST" action="posts.php" style="display:inline">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_admin_csrf_token(); ?>">
+                                                        <input type="hidden" name="action" value="send_approval">
+                                                        <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Send for approval">
+                                                            <i class="fas fa-paper-plane"></i>
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" action="posts.php" style="display:inline" onsubmit="return confirm('Delete this draft post?');">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_admin_csrf_token(); ?>">
+                                                        <input type="hidden" name="action" value="delete">
+                                                        <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Draft">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -370,7 +384,7 @@ log_admin_activity('Accessed Dashboard');
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- Chart.js removed per request -->
     <script>
         // Monthly Posts Chart (keep aspect ratio to avoid excessive height)
         (function() {
@@ -391,26 +405,4 @@ log_admin_activity('Accessed Dashboard');
                                 fill: true
                             }]
                         },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            aspectRatio: 2,
-                            scales: {
-                                y: {
-                                    beginAtZero: true
-                                }
-                            }
-                        }
-                    });
-                } else {
-                    console.warn('monthlyPostsChart canvas not found or unsupported');
-                }
-            } catch (e) {
-                console.error('Error initializing monthlyPostsChart', e);
-            }
-        })();
-
-        // Status Chart removed per request
-    </script>
-</body>
-</html>
+                        <!-- Chart script removed per request -->

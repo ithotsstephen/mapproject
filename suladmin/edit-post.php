@@ -246,6 +246,11 @@ $states = get_indian_states();
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="add-post.php">
+                            <i class="fas fa-plus"></i> Add Post
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link active" href="posts.php">
                             <i class="fas fa-file-alt"></i> All Posts
                         </a>

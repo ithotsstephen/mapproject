@@ -152,15 +152,7 @@ foreach ($post_counts as $count) {
                     <li class="nav-item">
                         <a class="nav-link" href="incidents.php">Incidents</a>
                     </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            Admin
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="admin/">Admin Login</a></li>
-                            <li><a class="dropdown-item" href="suadmin/">Super Admin</a></li>
-                        </ul>
-                    </li>
+                    <!-- Admin links removed per request -->
                 </ul>
             </div>
         </div>

@@ -180,6 +180,9 @@ if ($action === 'list') {
                 <a class="nav-link active" href="categories.php">
                     <i class="fas fa-tags"></i> Categories
                 </a>
+                <a class="nav-link" href="add-post.php">
+                    <i class="fas fa-plus"></i> Add Post
+                </a>
                 <a class="nav-link" href="posts.php">
                     <i class="fas fa-file-alt"></i> All Posts
                 </a>

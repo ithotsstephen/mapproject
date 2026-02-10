@@ -199,6 +199,9 @@ if ($action === 'list') {
                 <a class="nav-link" href="categories.php">
                     <i class="fas fa-tags"></i> Categories
                 </a>
+                <a class="nav-link" href="add-post.php">
+                    <i class="fas fa-plus"></i> Add Post
+                </a>
                 <a class="nav-link" href="posts.php">
                     <i class="fas fa-file-alt"></i> All Posts
                 </a>
@@ -307,6 +310,10 @@ if ($action === 'list') {
                                    class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-edit"></i> Edit
                                 </a>
+                                <a href="?action=edit&id=<?php echo $admin['id']; ?>#password" 
+                                   class="btn btn-sm btn-outline-success">
+                                    <i class="fas fa-key"></i> Reset Password
+                                </a>
                                 <!-- Always show delete button (backend still protects admins with posts) -->
                                 <form method="POST" class="d-inline-block">
                                     <input type="hidden" name="action" value="delete">
@@ -352,7 +359,7 @@ if ($action === 'list') {
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             
                             <div class="row">
-                                <div class="col-md-6 mb-3">
+                                <div class="col-md-6 mb-3" id="password">
                                     <label for="name" class="form-label">Full Name *</label>
                                     <input type="text" class="form-control" id="name" name="name" 
                                            value="<?php echo htmlspecialchars($admin_data['name'] ?? ''); ?>" required>

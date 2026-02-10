@@ -29,6 +29,18 @@ $stats['total_admins'] = $stmt->fetchColumn();
 $stmt = $pdo->query("SELECT COUNT(*) as active FROM users WHERE role = 'admin' AND last_login >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
 $stats['active_admins'] = $stmt->fetchColumn();
 
+// Admin status counts
+$stmt = $pdo->query("SELECT COUNT(*) as active FROM users WHERE role = 'admin' AND status = 'active'");
+$stats['admins_active'] = $stmt->fetchColumn();
+$stmt = $pdo->query("SELECT COUNT(*) as inactive FROM users WHERE role = 'admin' AND status = 'inactive'");
+$stats['admins_inactive'] = $stmt->fetchColumn();
+
+// Category status counts
+$stmt = $pdo->query("SELECT COUNT(*) as active FROM categories WHERE status = 'active'");
+$stats['categories_active'] = $stmt->fetchColumn();
+$stmt = $pdo->query("SELECT COUNT(*) as inactive FROM categories WHERE status = 'inactive'");
+$stats['categories_inactive'] = $stmt->fetchColumn();
+
 // Posts by month (last 12 months)
 $monthly_posts = [];
 $stmt = $pdo->query("
@@ -42,7 +54,7 @@ $monthly_posts = $stmt->fetchAll();
 
 // Recent posts
 $stmt = $pdo->query("
-    SELECT p.id, p.title, p.state, p.status, p.created_at, u.name as admin_name 
+    SELECT p.id, p.title, p.state, p.status, p.created_at, p.admin_id, u.name as admin_name 
     FROM posts p 
     LEFT JOIN users u ON p.admin_id = u.id 
     ORDER BY p.created_at DESC 
@@ -141,6 +153,11 @@ log_super_admin_activity('Accessed Dashboard');
                     <li class="nav-item">
                         <a class="nav-link" href="categories.php">
                             <i class="fas fa-tags"></i> Categories
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="add-post.php">
+                            <i class="fas fa-plus"></i> Add Post
                         </a>
                     </li>
                     <li class="nav-item">
@@ -256,14 +273,76 @@ log_super_admin_activity('Accessed Dashboard');
             </div>
         </div>
 
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card border-start border-success border-4">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Admins Active</div>
+                                <div class="h5 mb-0 font-weight-bold"><?php echo number_format($stats['admins_active']); ?></div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-user-check stat-icon text-success"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card border-start border-secondary border-4">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">Admins Inactive</div>
+                                <div class="h5 mb-0 font-weight-bold"><?php echo number_format($stats['admins_inactive']); ?></div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-user-slash stat-icon text-secondary"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card border-start border-success border-4">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Categories Active</div>
+                                <div class="h5 mb-0 font-weight-bold"><?php echo number_format($stats['categories_active']); ?></div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-tags stat-icon text-success"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card border-start border-secondary border-4">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">Categories Inactive</div>
+                                <div class="h5 mb-0 font-weight-bold"><?php echo number_format($stats['categories_inactive']); ?></div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-tag stat-icon text-secondary"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row">
             <!-- Charts Column -->
             <div class="col-xl-8 mb-4">
-                <!-- Posts by Month Chart -->
-                <div class="chart-container mb-4">
-                    <h5><i class="fas fa-chart-line"></i> Posts by Month</h5>
-                    <canvas id="monthlyPostsChart" height="100"></canvas>
-                </div>
+                <!-- Posts by Month Chart removed per request -->
 
                 <!-- Posts by State Chart removed -->
             </div>
@@ -365,14 +444,34 @@ log_super_admin_activity('Accessed Dashboard');
                                             <td><?php echo htmlspecialchars($post['admin_name'] ?? 'N/A'); ?></td>
                                             <td><?php echo format_date($post['created_at']); ?></td>
                                             <td>
-                                                <a href="posts.php?action=edit&id=<?php echo $post['id']; ?>" 
-                                                   class="btn btn-sm btn-outline-primary">
+                                                                <a href="edit-post.php?id=<?php echo $post['id']; ?>" 
+                                                                    class="btn btn-sm btn-outline-primary">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
                                                 <a href="../details.php?id=<?php echo $post['id']; ?>" 
                                                    target="_blank" class="btn btn-sm btn-outline-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
+                                                <?php if ($post['status'] !== 'published'): ?>
+                                                    <form method="POST" action="posts.php" style="display:inline">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                        <input type="hidden" name="action" value="publish">
+                                                        <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Publish">
+                                                            <i class="fas fa-check"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                                <?php if ($post['status'] === 'draft' && (int)$post['admin_id'] === (int)$_SESSION['user_id']): ?>
+                                                    <form method="POST" action="posts.php" style="display:inline" onsubmit="return confirm('Delete this draft post?');">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                        <input type="hidden" name="action" value="delete">
+                                                        <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Draft">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -385,6 +484,11 @@ log_super_admin_activity('Accessed Dashboard');
                                 </tbody>
                             </table>
                         </div>
+                        <div class="text-center mt-3">
+                            <a href="posts.php" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-list"></i> View All Posts
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -393,7 +497,7 @@ log_super_admin_activity('Accessed Dashboard');
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- Chart.js removed per request -->
     <script>
         // Monthly Posts Chart
         (function() {
@@ -402,43 +506,7 @@ log_super_admin_activity('Accessed Dashboard');
                 if (monthlyEl && monthlyEl.getContext) {
                     const monthlyCtx = monthlyEl.getContext('2d');
                     new Chart(monthlyCtx, {
-            type: 'line',
-            data: {
-                labels: [<?php echo implode(',', array_map(function($item) { return '"' . date('M Y', strtotime($item['month'] . '-01')) . '"'; }, $monthly_posts)); ?>],
-                datasets: [{
-                    label: 'Posts Created',
-                    data: [<?php echo implode(',', array_column($monthly_posts, 'count')); ?>],
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-                    });
-                } else {
-                    console.warn('monthlyPostsChart canvas not found or unsupported');
-                }
-            } catch (e) {
-                console.error('Error initializing monthlyPostsChart', e);
-            }
-        })();
-
-        // Posts by State Chart (controlled sizing + truncated labels)
-        (function() {
-            const stateEl = document.getElementById('statePostsChart');
-            try {
-                if (stateEl && stateEl.getContext) {
-                    const stateCtx = stateEl.getContext('2d');
-                    const stateLabels = [<?php echo implode(',', array_map(function($item) { return '"' . $item['state'] . '"'; }, $posts_by_state)); ?>];
+            <!-- Chart script removed per request -->
                     const stateData = [<?php echo implode(',', array_column($posts_by_state, 'count')); ?>];
 
                     new Chart(stateCtx, {

@@ -48,11 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $validation_errors[] = 'Current password is required to change password.';
                 } else {
                     // Verify current password
-                    $user_check = $pdo->prepare("SELECT password_hash FROM users WHERE id = ?");
+                    $user_check = $pdo->prepare("SELECT password FROM users WHERE id = ?");
                     $user_check->execute([$admin_id]);
                     $user_data = $user_check->fetch();
                     
-                    if (!password_verify($current_password, $user_data['password_hash'])) {
+                    if (!$user_data || !password_verify($current_password, $user_data['password'])) {
                         $validation_errors[] = 'Current password is incorrect.';
                     }
                 }
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!empty($new_password)) {
                     // Update with new password
                     $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
-                    $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ?, password_hash = ?, updated_at = NOW() WHERE id = ?");
+                    $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ?, password = ?, updated_at = NOW() WHERE id = ?");
                     $stmt->execute([$name, $email, $password_hash, $admin_id]);
                 } else {
                     // Update without password change

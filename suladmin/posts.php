@@ -21,18 +21,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $error = 'Invalid security token. Please try again.';
     } else {
         switch ($_POST['action']) {
+            case 'publish':
+                $publish_id = intval($_POST['post_id'] ?? 0);
+                if ($publish_id > 0) {
+                    $stmt = $pdo->prepare("UPDATE posts SET status = 'published' WHERE id = ?");
+                    if ($stmt->execute([$publish_id])) {
+                        $message = 'Post published successfully.';
+                        log_super_admin_activity('Published Post', "ID: $publish_id");
+                    } else {
+                        $error = 'Failed to publish post.';
+                    }
+                }
+                break;
+            case 'delete':
+                $delete_id = intval($_POST['post_id'] ?? 0);
+                if ($delete_id > 0) {
+                    $stmt = $pdo->prepare("DELETE FROM posts WHERE id = ? AND admin_id = ? AND status = 'draft'");
+                    if ($stmt->execute([$delete_id, $_SESSION['user_id']])) {
+                        if ($stmt->rowCount() > 0) {
+                            $message = 'Draft post deleted successfully.';
+                            log_super_admin_activity('Deleted Post', "ID: $delete_id");
+                        } else {
+                            $error = 'You can only delete your own draft posts.';
+                        }
+                    } else {
+                        $error = 'Failed to delete post.';
+                    }
+                }
+                break;
             case 'bulk_delete':
                 $selected_posts = $_POST['selected_posts'] ?? [];
                 if (!empty($selected_posts)) {
                     $placeholders = str_repeat('?,', count($selected_posts) - 1) . '?';
-                    $stmt = $pdo->prepare("DELETE FROM posts WHERE id IN ($placeholders)");
-                    $deleted_count = $stmt->execute($selected_posts) ? $stmt->rowCount() : 0;
-                    
+                    $params = array_merge([$_SESSION['user_id']], $selected_posts);
+                    $stmt = $pdo->prepare("DELETE FROM posts WHERE admin_id = ? AND status = 'draft' AND id IN ($placeholders)");
+                    $deleted_count = $stmt->execute($params) ? $stmt->rowCount() : 0;
+
                     if ($deleted_count > 0) {
-                        $message = "Deleted $deleted_count posts successfully.";
+                        $message = "Deleted $deleted_count draft post(s) successfully.";
                         log_super_admin_activity('Bulk Deleted Posts', "Count: $deleted_count");
                     } else {
-                        $error = 'Failed to delete posts.';
+                        $error = 'You can only delete your own draft posts.';
                     }
                 }
                 break;
@@ -61,10 +90,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Handle individual actions
 if ($action === 'delete' && $post_id > 0) {
-    $stmt = $pdo->prepare("DELETE FROM posts WHERE id = ?");
-    if ($stmt->execute([$post_id])) {
-        $message = 'Post deleted successfully.';
-        log_super_admin_activity('Deleted Post', "ID: $post_id");
+    $stmt = $pdo->prepare("DELETE FROM posts WHERE id = ? AND admin_id = ? AND status = 'draft'");
+    if ($stmt->execute([$post_id, $_SESSION['user_id']])) {
+        if ($stmt->rowCount() > 0) {
+            $message = 'Draft post deleted successfully.';
+            log_super_admin_activity('Deleted Post', "ID: $post_id");
+        } else {
+            $error = 'You can only delete your own draft posts.';
+        }
     } else {
         $error = 'Failed to delete post.';
     }
@@ -195,6 +228,9 @@ $categories = $pdo->query("SELECT id, name FROM categories ORDER BY name")->fetc
                 </a>
                 <a class="nav-link" href="categories.php">
                     <i class="fas fa-tags"></i> Categories
+                </a>
+                <a class="nav-link" href="add-post.php">
+                    <i class="fas fa-plus"></i> Add Post
                 </a>
                 <a class="nav-link active" href="posts.php">
                     <i class="fas fa-file-alt"></i> All Posts
@@ -409,11 +445,26 @@ $categories = $pdo->query("SELECT id, name FROM categories ORDER BY name")->fetc
                                            class="btn btn-sm btn-outline-warning" title="Edit">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="?action=delete&id=<?php echo $post['id']; ?>" 
-                                           class="btn btn-sm btn-outline-danger" title="Delete"
-                                           onclick="return confirm('Are you sure you want to delete this post?')">
-                                            <i class="fas fa-trash"></i>
-                                        </a>
+                                        <?php if ($post['status'] !== 'published'): ?>
+                                            <form method="POST" style="display:inline">
+                                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                <input type="hidden" name="action" value="publish">
+                                                <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Publish">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                        <?php if ($post['status'] === 'draft' && (int)$post['admin_id'] === (int)$_SESSION['user_id']): ?>
+                                            <form method="POST" style="display:inline" onsubmit="return confirm('Delete this draft post?');">
+                                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Draft">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
